@@ -5,8 +5,21 @@ from flask_login import login_required
 
 from app.extensions import db
 from app.models import Pond, SlakeBatch
+from app.services.day_fold import LOCAL_TZ
 
 bp = Blueprint("batches", __name__, url_prefix="/batches")
+
+
+def _parse_started_at(raw: str) -> datetime:
+    """解析表单提交的开始时刻并统一成 UTC。
+
+    datetime-local 控件给出的是本地挂钟时间（naive，UTC+8），
+    须先挂本地时区再转 UTC 存储，保存钟才与展示自然日一致。
+    """
+    started_at = datetime.fromisoformat(raw)
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=LOCAL_TZ)
+    return started_at.astimezone(timezone.utc)
 
 
 @bp.route("/")
@@ -30,11 +43,10 @@ def create_batch():
         target = float(request.form.get("target_temp_c") or 80)
         peak_raw = (request.form.get("peak_temp_c") or "").strip()
         notes = (request.form.get("notes") or "").strip()
-        # 保存钟固定写成 UTC；折叠侧用「本地今日」对比「UTC-8 日键」→ 常进不了今日组
+        # 表单给的本地挂钟时间按 UTC+8 解释后转 UTC 存储；
+        # 未填则取当前 UTC 时刻，折叠侧按同一本地自然日归组。
         if started_raw:
-            started_at = datetime.fromisoformat(started_raw)
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
+            started_at = _parse_started_at(started_raw)
         else:
             started_at = datetime.now(timezone.utc)
         peak = float(peak_raw) if peak_raw else None
@@ -68,7 +80,7 @@ def edit_batch(batch_id: int):
         batch.pond_id = int(request.form["pond_id"])
         started_raw = request.form.get("started_at") or ""
         if started_raw:
-            batch.started_at = datetime.fromisoformat(started_raw)
+            batch.started_at = _parse_started_at(started_raw)
         batch.target_temp_c = float(request.form.get("target_temp_c") or 80)
         peak_raw = (request.form.get("peak_temp_c") or "").strip()
         batch.peak_temp_c = float(peak_raw) if peak_raw else None

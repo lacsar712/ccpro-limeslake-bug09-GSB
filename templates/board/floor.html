@@ -92,7 +92,7 @@
         <h3>最近熟化批次</h3>
         {% if selected_batch %}
         <dl class="kv">
-          <div><dt>开始</dt><dd>{{ selected_batch.started_at.strftime('%Y-%m-%d %H:%M') if selected_batch.started_at else '—' }}</dd></div>
+          <div><dt>开始</dt><dd>{{ selected_batch.started_at|localdt if selected_batch.started_at else '—' }}</dd></div>
           <div><dt>目标</dt><dd>{{ '%.1f'|format(selected_batch.target_temp_c) }} ℃</dd></div>
           <div><dt>峰值</dt><dd>{% if selected_batch.peak_temp_c is not none %}{{ '%.1f'|format(selected_batch.peak_temp_c) }} ℃{% else %}未记录{% endif %}</dd></div>
           <div><dt>备注</dt><dd>{{ selected_batch.notes or '—' }}</dd></div>
@@ -111,7 +111,7 @@
           {% if group.batches %}
           <ul class="day-batch-list">
             {% for b in group.batches %}
-            <li>{{ b.started_at.strftime('%H:%M') if b.started_at else '—' }} · 峰值 {% if b.peak_temp_c is not none %}{{ '%.0f'|format(b.peak_temp_c) }}{% else %}空{% endif %} · {{ b.notes or '—' }}</li>
+            <li>{{ b.started_at|localdt('%H:%M') if b.started_at else '—' }} · 峰值 {% if b.peak_temp_c is not none %}{{ '%.0f'|format(b.peak_temp_c) }}{% else %}空{% endif %} · {{ b.notes or '—' }}</li>
             {% endfor %}
           </ul>
           {% else %}

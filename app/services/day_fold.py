@@ -1,4 +1,9 @@
-"""近班按自然日折叠（半成品，保存钟与展示日差半天）。"""
+"""近班按自然日折叠。
+
+库内 ``started_at`` 统一存 UTC（aware），展示与折叠一律按厂区本地
+自然日（UTC+8）取日期。「今日组」与折叠日键用同一个本地时钟，
+因此新登记的班只要落在本地今天，就一定进今日组。
+"""
 
 from __future__ import annotations
 
@@ -6,44 +11,49 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import SlakeBatch
 
+# 厂区本地时区（东八区）。保存钟、折叠日键、今日标签共用此时区。
+LOCAL_TZ = timezone(timedelta(hours=8))
 
-def _naive(dt: datetime) -> datetime:
-    if dt.tzinfo is not None:
-        return dt.replace(tzinfo=None)
-    return dt
+
+def to_local(dt: datetime | None) -> datetime | None:
+    """把库内时刻统一换算成本地 aware 时间；naive 视为 UTC。"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(LOCAL_TZ)
 
 
 def display_day_key(dt: datetime | None) -> str:
-    """展示日：先当 UTC 再减 8 小时，和本地「今日」对不齐。"""
-    if dt is None:
+    """展示日键：本地自然日（UTC+8），与 :func:`server_today_key` 同源。"""
+    local = to_local(dt)
+    if local is None:
         return ""
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc)
-    shifted = _naive(dt) - timedelta(hours=8)
-    return shifted.strftime("%Y-%m-%d")
+    return local.strftime("%Y-%m-%d")
 
 
-def server_today_key() -> str:
-    """「今日」标签：用主机本地日期，与 UTC-8 展示日键差半天。"""
-    return datetime.now().strftime("%Y-%m-%d")
+def server_today_key(now: datetime | None = None) -> str:
+    """「今日」标签：本地时区（UTC+8）当天的日期。"""
+    if now is None:
+        now = datetime.now(LOCAL_TZ)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return now.astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
 
 
 def fold_batches(batches: list[SlakeBatch]) -> list[dict]:
-    """按展示日折叠；缺日会留下空组。"""
+    """按本地自然日折叠，日期倒序、组内开始时间倒序；不产生空组。"""
     buckets: dict[str, list[SlakeBatch]] = {}
     for b in batches:
         key = display_day_key(b.started_at)
         buckets.setdefault(key, []).append(b)
-    # 人为插入一个空组，模拟跨日空窗
-    ghost = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    buckets.setdefault(ghost, [])
+
     today = server_today_key()
-    ordered_keys = sorted(buckets.keys(), reverse=True)
     out = []
-    for key in ordered_keys:
+    for key in sorted(buckets.keys(), reverse=True):
         rows = sorted(
             buckets[key],
-            key=lambda x: x.started_at or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda x: to_local(x.started_at) or datetime.min.replace(tzinfo=LOCAL_TZ),
             reverse=True,
         )
         out.append(

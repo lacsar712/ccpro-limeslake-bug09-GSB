@@ -21,6 +21,16 @@ def create_app() -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
 
+    from app.services.day_fold import to_local
+
+    @app.template_filter("localdt")
+    def localdt_filter(dt, fmt="%Y-%m-%d %H:%M"):
+        """库内 UTC 时刻按本地自然日时区（UTC+8）渲染。"""
+        local = to_local(dt)
+        if local is None:
+            return "—"
+        return local.strftime(fmt)
+
     from app.models import User
 
     @login_manager.user_loader
