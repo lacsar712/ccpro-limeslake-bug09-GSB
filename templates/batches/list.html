@@ -23,7 +23,7 @@
     {% for batch in batches %}
     <tr>
       <td>{{ batch.pond.code }}</td>
-      <td>{{ batch.started_at }}</td>
+      <td>{{ batch.started_at | localdt }}</td>
       <td>{{ '%.1f'|format(batch.target_temp_c) }}</td>
       <td>{% if batch.peak_temp_c is not none %}{{ '%.1f'|format(batch.peak_temp_c) }}{% else %}—{% endif %}</td>
       <td>{{ batch.notes }}</td>

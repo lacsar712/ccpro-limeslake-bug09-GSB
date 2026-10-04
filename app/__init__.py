@@ -21,6 +21,15 @@ def create_app() -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
 
+    from app.services.timekit import to_server_local
+
+    @app.template_filter("localdt")
+    def localdt(dt, fmt="%Y-%m-%d %H:%M"):
+        """按服务器本地时区展示时刻。"""
+        if dt is None:
+            return ""
+        return to_server_local(dt).strftime(fmt)
+
     from app.models import User
 
     @login_manager.user_loader
